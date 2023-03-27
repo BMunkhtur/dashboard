@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async';
-import { filter } from 'lodash';
+import { filter, update } from 'lodash';
 import { sentenceCase } from 'change-case';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -22,11 +22,15 @@ import {
   IconButton,
   TableContainer,
   TablePagination,
+  Box,
 } from '@mui/material';
+
 // components
 import Label from '../components/label';
 import Iconify from '../components/iconify';
 import Scrollbar from '../components/scrollbar';
+
+import BasicModal from '../components/category/index';
 // sections
 import { UserListHead, UserListToolbar } from '../sections/@dashboard/user';
 // mock
@@ -37,10 +41,9 @@ import USERLIST from '../_mock/user';
 const TABLE_HEAD = [
   { id: 'title', label: 'Нэр', alignRight: false },
   { id: 'description', label: 'Тайлбар', alignRight: false },
-  { id: 'categoryImg', label: 'Зураг', alignRight: false },
-  { id: 'catgegoryRating', label: 'Үнэлгээ', alignRight: false },
-  { id: 'role', label: 'Role', alignRight: false },
-  { id: '' },
+  { id: 'categoryImage', label: 'Зураг', alignRight: false },
+  { id: 'categoryRating', label: 'Үнэлгээ', alignRight: false },
+  { id: 'actions', label: ' Үйлдлүүд', alignRight: true },
 ];
 
 // ----------------------------------------------------------------------
@@ -75,8 +78,11 @@ function applySortFilter(array, comparator, query) {
 }
 
 export default function UserPage() {
-  const [categories, setCategory] = useState([]);
-
+  //--------------------------------------------------------------------------------
+  const [filteredCategory, setFilteredCategory] = useState([]);
+  const [category, setCategory] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [isNew, setIsNew] = useState(true);
   const [open, setOpen] = useState(null);
 
   const [page, setPage] = useState(0);
@@ -89,8 +95,11 @@ export default function UserPage() {
 
   const [filterName, setFilterName] = useState('');
 
-  const [rowsPerPage, setRowsPerPage] = useState(2);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
+  const handleClose = () => {
+    setModalOpen(false);
+  };
   const handleOpenMenu = (event) => {
     setOpen(event.currentTarget);
   };
@@ -107,7 +116,7 @@ export default function UserPage() {
 
   const handleSelectAllClick = (event) => {
     if (event.target.checked) {
-      const newSelecteds = USERLIST.map((n) => n.name);
+      const newSelecteds = filteredCategory.map((n) => n.name);
       setSelected(newSelecteds);
       return;
     }
@@ -143,172 +152,199 @@ export default function UserPage() {
     setFilterName(event.target.value);
   };
 
-  const emptyRows = page > 0 ? Math.max(0, (1 + page) * rowsPerPage - USERLIST.length) : 0;
+  //---------------------------------------------------
 
-  const filteredUsers = applySortFilter(USERLIST, getComparator(order, orderBy), filterName);
+  const emptyRows = page > 0 ? Math.max(0, (1 + page) * rowsPerPage - filteredCategory.length) : 0;
 
-  const [fileteredCategory, setFilteredCategory] = useState([]);
+  const isNotFound = !filteredCategory.length && !!filterName;
+  // ---------------------------------------------------------------------------------------
 
-  const isNotFound = !filteredUsers.length && !!filterName;
+  //-----------------------------------------------------------------------------------------
+  const getCategory = async () => {
+    try {
+      const result = await axios.get('http://localhost:8000/categories');
+      console.log(result.data.categories);
+      setFilteredCategory(result.data.categories);
+    } catch (err) {
+      console.log('ERR', err);
+    }
+  };
 
+  const deleteCat = async (_id) => {
+    try {
+      const result = await axios.delete(`http://localhost:8000/categories/${_id}`);
+      getCategory();
+    } catch (err) {
+      console.log('ERR', err);
+    }
+  };
   useEffect(() => {
-    axios
-      .get('http://localhost:8000/categories')
-      .then((res) => {
-        console.log('CAT IRLEE', res.data.categories);
-        setCategory(res.data.categories);
-        setFilteredCategory(res.data.categories);
-      })
-      .catch((err) => {
-        console.log('Err', err);
-      });
+    console.log('-----');
+    getCategory();
   }, []);
+  //-------------------------------------------------------------------------------------------------------
 
   return (
     <>
       <Helmet>
-        <title> Azure Категори </title>
+        <title> Azure category</title>
       </Helmet>
-
+      <Box>
+        <BasicModal
+          handleClose={handleClose}
+          modalOpen={modalOpen}
+          category={category}
+          getCategory={getCategory}
+          isNew={isNew}
+          setIsNew={setIsNew}
+        />
+      </Box>
       <Container>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={5}>
           <Typography variant="h4" gutterBottom>
-            Категори
+            Category
           </Typography>
-          <Button variant="contained" startIcon={<Iconify icon="eva:plus-fill" />}>
-            Шинэ Категори Үүсгэх
+          <Button
+            variant="contained"
+            startIcon={<Iconify icon="eva:plus-fill" />}
+            onClick={() => {
+              setModalOpen(true);
+              setIsNew(false);
+            }}
+          >
+            New category
           </Button>
         </Stack>
-        {!categories.length && <h4>Хоосон байна</h4>}
-        {categories.length > 0 && (
-          <Card>
-            <UserListToolbar numSelected={selected.length} filterName={filterName} onFilterName={handleFilterByName} />
 
-            <Scrollbar>
-              <TableContainer sx={{ minWidth: 800 }}>
-                <Table>
-                  <UserListHead
-                    order={order}
-                    orderBy={orderBy}
-                    headLabel={TABLE_HEAD}
-                    rowCount={USERLIST.length}
-                    numSelected={selected.length}
-                    onRequestSort={handleRequestSort}
-                    onSelectAllClick={handleSelectAllClick}
-                  />
-                  {/* {.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)} */}
-                  <TableBody>
-                    {fileteredCategory?.map((row) => {
-                      const { _id, title, description, categoryImg, categoryRating } = row;
+        <Card>
+          <UserListToolbar numSelected={selected.length} filterName={filterName} onFilterName={handleFilterByName} />
 
-                      // selected={selectedUser}
-                      return (
-                        <TableRow hover key={_id} tabIndex={-1} role="checkbox">
-                          <TableCell padding="checkbox">
-                            <Checkbox checked={false} onChange={(event) => handleClick(event, title)} />
-                          </TableCell>
+          <Scrollbar>
+            <TableContainer sx={{ minWidth: 800 }}>
+              <Table>
+                <UserListHead
+                  order={order}
+                  orderBy={orderBy}
+                  headLabel={TABLE_HEAD}
+                  rowCount={USERLIST.length}
+                  numSelected={selected.length}
+                  onRequestSort={handleRequestSort}
+                  onSelectAllClick={handleSelectAllClick}
+                />
+                <TableBody>
+                  {filteredCategory?.map((row) => {
+                    const { _id, title, description, categoryImg, categoryRating } = row;
+                    //------------------------------------------------------
+                    return (
+                      <TableRow hover key={_id} tabIndex={-1} role="checkbox">
+                        <TableCell padding="checkbox">
+                          <Checkbox checked={false} onChange={(event) => handleClick(event, title)} />
+                        </TableCell>
 
-                          <TableCell component="th" scope="row" padding="none">
-                            <Stack direction="row" alignItems="center" spacing={2}>
-                              <Avatar alt={title} src={categoryImg} />
-                              <Typography variant="subtitle2" noWrap>
-                                {title}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
+                        <TableCell component="th" scope="row" padding="none">
+                          <Stack direction="row" alignItems="center" spacing={2}>
+                            <Typography variant="subtitle2" noWrap>
+                              {title}
+                            </Typography>
+                          </Stack>
+                        </TableCell>
 
-                          <TableCell align="left">{description}</TableCell>
+                        <TableCell align="left">{description}</TableCell>
+                        <Avatar alt={title} src={categoryImg} />
+                        <TableCell align="left">{categoryRating}</TableCell>
 
-                          <TableCell align="left">url</TableCell>
-
-                          <TableCell align="left">
-                            {/* <Label color={(status === 'banned' && 'error') || 'success'}>{sentenceCase(status)}</Label> */}
-                            {categoryRating}
-                          </TableCell>
-
-                          <TableCell align="right">
-                            <IconButton size="large" color="inherit" onClick={handleOpenMenu}>
-                              <Iconify icon={'eva:more-vertical-fill'} />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {emptyRows > 0 && (
-                      <TableRow style={{ height: 53 * emptyRows }}>
-                        <TableCell colSpan={6} />
-                      </TableRow>
-                    )}
-                  </TableBody>
-
-                  {isNotFound && (
-                    <TableBody>
-                      <TableRow>
-                        <TableCell align="center" colSpan={6} sx={{ py: 3 }}>
-                          <Paper
-                            sx={{
-                              textAlign: 'center',
+                        <TableCell align="right">
+                          <IconButton
+                            size="large"
+                            color="inherit"
+                            onClick={() => {
+                              setModalOpen(true);
+                              setCategory(row);
+                              setIsNew(true);
                             }}
                           >
-                            <Typography variant="h6" paragraph>
-                              Not found
-                            </Typography>
-
-                            <Typography variant="body2">
-                              No results found for &nbsp;
-                              <strong>&quot;{filterName}&quot;</strong>.
-                              <br /> Try checking for typos or using complete words.
-                            </Typography>
-                          </Paper>
+                            <Iconify icon={'eva:edit-fill'} />
+                          </IconButton>
+                          <IconButton size="large" color="inherit" onClick={() => deleteCat(_id)}>
+                            <Iconify icon={'eva:trash-fill'} />
+                          </IconButton>
+                          <Popover
+                            open={Boolean(open)}
+                            anchorEl={open}
+                            onClose={handleCloseMenu}
+                            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+                            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                            PaperProps={{
+                              sx: {
+                                p: 1,
+                                width: 140,
+                                '& .MuiMenuItem-root': {
+                                  px: 1,
+                                  typography: 'body2',
+                                  borderRadius: 0.75,
+                                },
+                              },
+                            }}
+                          >
+                            <MenuItem>
+                              <Button onClick={() => setModalOpen(true)}>
+                                <Iconify icon={'eva:edit-fill'} sx={{ mr: 2 }} />
+                                {/* Edit */}
+                              </Button>
+                            </MenuItem>
+                            <Button sx={{ color: 'error.main' }} onClick={() => deleteCat(_id)}>
+                              <Iconify icon={'eva:trash-2-outline'} sx={{ mr: 2 }} />
+                              {/* Delete */}
+                            </Button>
+                          </Popover>
                         </TableCell>
                       </TableRow>
-                    </TableBody>
+                    );
+                  })}
+                  {emptyRows > 0 && (
+                    <TableRow style={{ height: 53 * emptyRows }}>
+                      <TableCell colSpan={6} />
+                    </TableRow>
                   )}
-                </Table>
-              </TableContainer>
-            </Scrollbar>
+                </TableBody>
 
-            <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
-              component="div"
-              count={USERLIST.length}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-            />
-          </Card>
-        )}
+                {isNotFound && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell align="center" colSpan={6} sx={{ py: 3 }}>
+                        <Paper
+                          sx={{
+                            textAlign: 'center',
+                          }}
+                        >
+                          <Typography variant="h6" paragraph>
+                            Not found
+                          </Typography>
+                          <Typography variant="body2">
+                            No results found for &nbsp;
+                            <strong>&quot;{filterName}&quot;</strong>.
+                            <br /> Try checking for typos or using complete words.
+                          </Typography>
+                        </Paper>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+              </Table>
+            </TableContainer>
+          </Scrollbar>
+
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={USERLIST.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </Card>
       </Container>
-
-      <Popover
-        open={Boolean(open)}
-        anchorEl={open}
-        onClose={handleCloseMenu}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{
-          sx: {
-            p: 1,
-            width: 140,
-            '& .MuiMenuItem-root': {
-              px: 1,
-              typography: 'body2',
-              borderRadius: 0.75,
-            },
-          },
-        }}
-      >
-        <MenuItem>
-          <Iconify icon={'eva:edit-fill'} sx={{ mr: 2 }} />
-          Засах
-        </MenuItem>
-
-        <MenuItem sx={{ color: 'error.main' }}>
-          <Iconify icon={'eva:trash-2-outline'} sx={{ mr: 2 }} />
-          Устгах
-        </MenuItem>
-      </Popover>
     </>
   );
 }
