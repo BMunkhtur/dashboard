@@ -8,6 +8,7 @@ import ThemeProvider from './theme';
 import { StyledChart } from './components/chart';
 import ScrollToTop from './components/scroll-to-top';
 import AuthProvider from './context/authContext';
+import CategoryProvider from './context/catContext';
 
 // ----------------------------------------------------------------------
 
@@ -16,11 +17,13 @@ export default function App() {
     <HelmetProvider>
       <BrowserRouter>
         <ThemeProvider>
-          <AuthProvider>
-            <ScrollToTop />
-            <StyledChart />
-            <Router />
-          </AuthProvider>
+          <CategoryProvider>
+            <AuthProvider>
+              <ScrollToTop />
+              <StyledChart />
+              <Router />
+            </AuthProvider>
+          </CategoryProvider>
         </ThemeProvider>
       </BrowserRouter>
     </HelmetProvider>
